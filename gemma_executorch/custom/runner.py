@@ -29,7 +29,7 @@ class Runner(IRunner):
       prompt = apply_chat_template(prompt)
     
     input_token_ids = self.tokenizer.encode(prompt)
-    input_token_ids_tensor = torch.tensor(input_token_ids, dtype=torch.long, device=self.device).unsqueeze(0)
+    input_token_ids_tensor = torch.tensor(input_token_ids, dtype=torch.long, device=device).unsqueeze(0)
     input_positions_tensor = torch.arange(0, input_token_ids_tensor.shape[-1], dtype=torch.long).to(device=device)
 
     temperature_tensor = torch.FloatTensor([temperature]).to(device)
@@ -44,7 +44,8 @@ class Runner(IRunner):
         eos_token_id=self.tokenizer.encode("<end_of_turn>")[-1],
         temperature=temperature_tensor,
         top_p=top_p_tensor,
-        top_k=top_k_tensor
+        top_k=top_k_tensor,
+        device=device
     ):
         token_id = token.squeeze(0).tolist()
         generated_tokens.extend(token_id)
@@ -57,9 +58,10 @@ class Runner(IRunner):
                                    device: Any):
     with torch.no_grad():
       for _ in range(max_new_tokens):
-          logits = self.run_model(token_ids, positions)
-          next_token_tensor, _ = self.sample(logits, temperature, top_p, top_k)
-          next_token = next_token_tensor.item()
+          logits = self.run_model(token_ids, positions)[:, -1]
+          next_token, _ = self.sample(logits, temperature, top_p, top_k)
+          next_token = next_token.unsqueeze(dim=0)
+          # next_token = torch.argmax(logits, dim=-1, keepdim=True)
 
           if (eos_token_id is not None and torch.all(next_token == eos_token_id)):
               break

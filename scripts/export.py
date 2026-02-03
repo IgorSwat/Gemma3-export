@@ -6,6 +6,7 @@ from executorch.exir import to_edge_transform_and_lower
 from executorch.backends.xnnpack.partition.xnnpack_partitioner import XnnpackPartitioner
 from gemma_executorch.config import get_model_config
 from gemma_executorch.standard.gemma_casual import GemmaForCausalLM as StandardGemma
+from gemma_executorch.custom.gemma_casual import GemmaForCasualLM as CustomGemma
 from pathlib import Path
 from torch.export import Dim
 
@@ -39,12 +40,12 @@ def main():
     print(f"\033[1;34m[INFO]\033[0m Implementation: {args.impl}")
     print(f"\033[1;34m[INFO]\033[0m DType: {args.dtype}")
 
-    if args.impl != "standard":
-        print(f"\033[1;31m[ERROR]\033[0m Export currently only supports 'standard' implementation.")
-        sys.exit(1)
-
     with _set_default_tensor_type(config.get_dtype()):
-        model = StandardGemma(config)
+        if args.impl == "standard":
+            model = StandardGemma(config)
+        else:
+            model = CustomGemma(config)
+            
         print(f"\033[1;34m[INFO]\033[0m Loading weights from {args.model}...")
         model.load(args.model)
         model.eval()

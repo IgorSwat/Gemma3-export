@@ -8,9 +8,9 @@ import torch.nn as nn
 class FeedForward(nn.Module):
     def __init__(self, config: GemmaConfig):
         super().__init__()
-        self.fc1 = nn.Linear(config.embedding_dim, config.hidden_dim, config.dtype, bias=False)
-        self.fc2 = nn.Linear(config.embedding_dim, config.hidden_dim, config.dtype, bias=False)
-        self.fc3 = nn.Linear(config.hidden_dim, config.embedding_dim, config.dtype, bias=False)
+        self.fc1 = nn.Linear(config.embedding_dim, config.hidden_dim, dtype=config.get_dtype(), bias=False)
+        self.fc2 = nn.Linear(config.embedding_dim, config.hidden_dim, dtype=config.get_dtype(), bias=False)
+        self.fc3 = nn.Linear(config.hidden_dim, config.embedding_dim, dtype=config.get_dtype(), bias=False)
 
     def forward(self, x):
         x_fc1 = self.fc1(x)
@@ -137,7 +137,7 @@ class TransformerBlock(nn.Module):
             head_dim=config.head_dim,
             qk_norm=config.use_qk_norm,
             query_pre_attn_scalar=config.query_pre_attn_scalar,
-            dtype=config.dtype,
+            dtype=config.get_dtype(),
         )
         self.ff = FeedForward(config)
         self.input_layernorm = RMSNorm(config.embedding_dim, eps=1e-6)

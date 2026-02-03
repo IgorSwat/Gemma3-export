@@ -20,14 +20,14 @@ class GemmaForCasualLM(IGemma, nn.Module):
         assert config.attn_types is not None and len(config.attn_types) == config.num_hidden_layers
         
         # Main model parameters
-        self.tok_emb = nn.Embedding(config.vocab_size, config.embedding_dim, config.dtype)
+        self.tok_emb = nn.Embedding(config.vocab_size, config.embedding_dim, dtype=config.get_dtype())
 
         self.blocks = nn.ModuleList([
             TransformerBlock(config, attn_type) for attn_type in config.attn_types
         ])
 
         self.final_norm = RMSNorm(config.embedding_dim, eps=1e-6)
-        self.out_head = nn.Linear(config.embedding_dim, config.vocab_size, bias=False, dtype=config.dtype)
+        self.out_head = nn.Linear(config.embedding_dim, config.vocab_size, bias=False, dtype=config.get_dtype())
         self.config = config
 
         # Reusable utilities    
@@ -138,5 +138,7 @@ class GemmaForCasualLM(IGemma, nn.Module):
             )
 
         x = self.final_norm(x)
-        logits = self.out_head(x.to(self.config.dtype))
+
+        logits = self.out_head(x.to(self.config.get_dtype()))
+
         return logits

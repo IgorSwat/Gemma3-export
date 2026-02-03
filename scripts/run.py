@@ -29,6 +29,7 @@ def main():
     parser.add_argument("--prompt", type=str, default="Write a hello world program in python", help="Input prompt")
     parser.add_argument("--max-tokens", type=int, default=100, help="Maximum number of tokens to generate")
     parser.add_argument("--tokenizer", type=Path, default=None, help="Path to the tokenizer file (optional)")
+    parser.add_argument("--instruct", type=bool, default=True, help="Use instruction/chat template mode (default: True)")
 
     args = parser.parse_args()
 
@@ -89,7 +90,7 @@ def main():
                 model.eval()
             tokenizer = CustomTokenizer(str(tokenizer_path))
 
-        runner = CustomRunner(config, model, tokenizer, use_pte=use_pte)
+        runner = CustomRunner(config, model, tokenizer, use_pte=use_pte, use_instruct=args.instruct)
 
     print(f"\033[1;32m[START]\033[0m Generating response for prompt:\n\033[3m\"{args.prompt}\"\033[0m\n")
 

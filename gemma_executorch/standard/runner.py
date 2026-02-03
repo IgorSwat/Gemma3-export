@@ -2,6 +2,7 @@ from .gemma_casual import GemmaForCausalLM
 from .tokenizer import Tokenizer
 from ..config import GemmaConfig
 from ..irunner import IRunner
+from ..utils.chat_template import apply_chat_template
 from pathlib import Path
 from typing import Any, Optional, Union
 import torch
@@ -12,6 +13,7 @@ class Runner(IRunner):
   def __init__(self, config: GemmaConfig, model: Union[GemmaForCausalLM, Path], tokenizer: Tokenizer, 
                use_pte: bool = False, use_instruct: bool = True):
     super().__init__(config, model, tokenizer, use_pte)
+    self.use_instruct = use_instruct
 
   def generate(
     self,
@@ -22,6 +24,9 @@ class Runner(IRunner):
     top_k: int = 64,
     device: Any = torch.device("cpu")
   ):
+    if self.use_instruct:
+      prompt = apply_chat_template(prompt)
+
     prompt_tokens = self.tokenizer.encode(prompt)
 
     prompt_length = len(prompt_tokens)

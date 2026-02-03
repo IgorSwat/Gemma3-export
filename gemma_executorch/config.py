@@ -99,6 +99,7 @@ def get_config_for_270m(dtype: str) -> GemmaConfig:
       embedding_dim=640,
       hidden_dim=2048,
       head_dim=256,
+      n_kv_groups = 1,
       use_pre_ffw_norm=True,
       use_post_ffw_norm=True,
       rope_wave_length={
