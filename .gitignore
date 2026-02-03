@@ -1,0 +1,22 @@
+# Ignore model weight files
+*.pte
+*.ckpt
+*.safetensors
+
+# Ignore all files in models directory except .gitkeep
+models/*
+!models/.gitkeep
+
+# Log files
+logs/*
+!logs/.gitkeep
+
+# Python temporary files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
