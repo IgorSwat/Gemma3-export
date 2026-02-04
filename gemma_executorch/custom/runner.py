@@ -27,6 +27,7 @@ class Runner(IRunner):
   ):
     if self.use_instruct:
       prompt = apply_chat_template(prompt)
+    print(prompt)
     
     input_token_ids = self.tokenizer.encode(prompt)
     input_token_ids_tensor = torch.tensor(input_token_ids, dtype=torch.long, device=device).unsqueeze(0)

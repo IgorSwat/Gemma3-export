@@ -7,6 +7,7 @@ from executorch.backends.xnnpack.partition.xnnpack_partitioner import XnnpackPar
 from gemma_executorch.config import get_model_config
 from gemma_executorch.standard.gemma_casual import GemmaForCausalLM as StandardGemma
 from gemma_executorch.custom.gemma_casual import GemmaForCasualLM as CustomGemma
+from gemma_executorch.quant.ptq import run_ptq
 from pathlib import Path
 from torch.export import Dim
 
@@ -27,6 +28,8 @@ def main():
     parser.add_argument("--dtype", type=str, default="bfloat16", choices=["float32", "float16", "bfloat16"], help="Data type for weights")
     parser.add_argument("--output", type=Path, required=True, help="Path to save the .pte file")
     parser.add_argument("--max-seq-len", type=int, default=1024, help="Maximum sequence length for export (default: 1024)")
+    parser.add_argument("--quant", type=str, default=None, choices=["ptq", "qat"], help="Quantization method")
+    parser.add_argument("--quant-group-size", type=int, default=32, help="Group size for quantization (default: 32, use 0 for per-channel)")
 
     args = parser.parse_args()
 
@@ -40,6 +43,8 @@ def main():
     print(f"\033[1;34m[INFO]\033[0m Implementation: {args.impl}")
     print(f"\033[1;34m[INFO]\033[0m DType: {args.dtype}")
 
+    group_size = args.quant_group_size if args.quant_group_size >= 0 else None
+
     with _set_default_tensor_type(config.get_dtype()):
         if args.impl == "standard":
             model = StandardGemma(config)
@@ -49,6 +54,12 @@ def main():
         print(f"\033[1;34m[INFO]\033[0m Loading weights from {args.model}...")
         model.load(args.model)
         model.eval()
+
+        if args.quant == "ptq":
+            print(f"\033[1;34m[INFO]\033[0m Applying PTQ (group_size={group_size})...")
+            model = run_ptq(model, group_size=group_size)
+        elif args.quant == "qat":
+            pass
 
     print(f"\033[1;34m[INFO]\033[0m Starting export process...")
 
