@@ -69,3 +69,4 @@ class Runner(IRunner):
           yield next_token
           
           token_ids = torch.cat([token_ids, next_token], dim=1)
+          positions = torch.cat([positions, torch.tensor([positions[-1] + 1], device=device)], dim=0)

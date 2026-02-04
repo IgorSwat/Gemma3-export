@@ -61,8 +61,8 @@ def main():
 
     # Inputs: (tokens, pos)
     inputs = (
-        torch.randint(0, config.vocab_size, size=(1, 128), dtype=torch.int64),
-        torch.arange(0, 128, dtype=torch.int64),
+        torch.randint(0, config.vocab_size, size=(1, 128), dtype=torch.long),
+        torch.arange(0, 128, dtype=torch.long),
     )
     
     exported_program = torch.export.export(model, inputs, dynamic_shapes=dynamic_shapes)

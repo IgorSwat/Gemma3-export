@@ -34,22 +34,22 @@ class Runner(IRunner):
     assert max_seq_len <= self.config.max_position_embeddings
 
     token_ids_tensor = torch.full((1, max_seq_len),
-                                      self.tokenizer.pad_id, dtype=torch.int64)
+                                      self.tokenizer.pad_id, dtype=torch.long)
     input_token_ids_tensor = torch.full((1, prompt_length),
                                         self.tokenizer.pad_id,
-                                        dtype=torch.int64)
+                                        dtype=torch.long)
     token_ids_tensor[:, :prompt_length] = torch.tensor(prompt_tokens)
     input_token_ids_tensor[:, :prompt_length] = torch.tensor(prompt_tokens[:prompt_length])
     token_ids_tensor = token_ids_tensor.to(device)
     input_token_ids_tensor = input_token_ids_tensor.to(device)
     input_positions_tensor = torch.arange(0, prompt_length,
-                                          dtype=torch.int64).to(device)
+                                          dtype=torch.long).to(device)
     prompt_mask_tensor = token_ids_tensor != self.tokenizer.pad_id
     
     temperatures_tensor = None if not temperature else torch.FloatTensor([temperature]).to(device)
     top_ps_tensor = torch.FloatTensor([top_p]).to(device)
     top_ks_tensor = torch.LongTensor([top_k]).to(device)
-    output_index = torch.tensor(prompt_length, dtype=torch.int64).to(device)
+    output_index = torch.tensor(prompt_length, dtype=torch.long).to(device)
 
     for _ in range(output_len):
       # INFERENCE
