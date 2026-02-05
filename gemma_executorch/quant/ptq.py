@@ -1,4 +1,4 @@
-from torchao.quantization.quant_api import quantize_, Int8DynamicActivationInt4WeightConfig, Int4WeightOnlyConfig
+from torchao.quantization.quant_api import quantize_, Int8DynamicActivationInt4WeightConfig, Int4WeightOnlyConfig, Float8DynamicActivationFloat8WeightConfig
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

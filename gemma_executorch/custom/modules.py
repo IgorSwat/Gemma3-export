@@ -94,6 +94,9 @@ class GroupedQueryAttention(nn.Module):
         self.register_buffer("k_cache", torch.zeros(kv_cache_shape, dtype=dtype), persistent=False)
         self.register_buffer("v_cache", torch.zeros(kv_cache_shape, dtype=dtype), persistent=False)
 
+        # Precompute history indices for data-independent masking
+        self.register_buffer("history_indices", torch.arange(max_seq_len).view(1, -1), persistent=False)
+
     def forward(self, x, input_positions, mask, cos, sin):
         b, num_tokens, _ = x.shape
 
@@ -114,29 +117,46 @@ class GroupedQueryAttention(nn.Module):
             keys = self.k_norm(keys)
 
         # Apply RoPE to queries and the NEW keys only
-        queries = apply_rope(queries, cos, sin)
-        keys = apply_rope(keys, cos, sin)
+        cos_indexed = cos[input_positions]
+        sin_indexed = sin[input_positions]
+        queries = apply_rope(queries, cos_indexed, sin_indexed)
+        keys = apply_rope(keys, cos_indexed, sin_indexed)
 
         # Update cache for new tokens
-        self.k_cache[:b, input_positions] = keys.transpose(1, 2)
-        self.v_cache[:b, input_positions] = values.transpose(1, 2)
+        with torch.no_grad():
+            self.k_cache[:b, input_positions] = keys.transpose(1, 2).detach()
+            self.v_cache[:b, input_positions] = values.transpose(1, 2).detach()
 
-        # Use full history from cache for attention
-        # For sliding window, you'd slice the last N positions here
-        last_pos = input_positions[-1].item()
-        keys = self.k_cache[:b, :last_pos+1].transpose(1, 2)
-        values = self.v_cache[:b, :last_pos+1].transpose(1, 2)
+        # Use full history for ExecuTorch compatibility.
+        keys = self.k_cache[:b, :].transpose(1, 2)
+        values = self.v_cache[:b, :].transpose(1, 2)
 
         # Expand K and V to match number of heads
-        keys = keys.repeat_interleave(self.group_size, dim=1)
-        values = values.repeat_interleave(self.group_size, dim=1)
+        # Expand K and V to match number of heads
+        if self.num_kv_groups != self.num_heads:
+            # [batch_size, num_heads, max_seq_len, head_dim]
+            # Fix: replacing repeat_interleave makes the model almost 2x as fast for single token inference
+            keys = keys.unsqueeze(2).expand(-1, -1, self.group_size, -1, -1).reshape(b, self.num_heads, -1, self.head_dim)
+            values = values.unsqueeze(2).expand(-1, -1, self.group_size, -1, -1).reshape(b, self.num_heads, -1, self.head_dim)
 
         # Scale queries
         queries = queries * self.scaling
 
         # Attention
         attn_scores = queries @ keys.transpose(2, 3)
-        attn_scores = attn_scores.masked_fill(mask, -torch.inf)
+
+        # Create a consolidated mask without CPU branching or .item() calls
+        query_indices = input_positions.view(-1, 1)
+        
+        # Compute relative distance: negative means "future" or "unwritten cache"
+        dist = query_indices - self.history_indices
+        mask_valid = (dist < 0)
+
+        if self.attn_type == AttentionType.LOCAL_SLIDING:
+            mask_valid = mask_valid | (dist >= self.sliding_window_size)
+        # Apply the mask locally computed (this replaces the need for external mask_global/local)
+        attn_scores = attn_scores.masked_fill(mask_valid.unsqueeze(0).unsqueeze(0), -torch.inf)
+
         attn_weights = torch.softmax(attn_scores, dim=-1)
         context = (attn_weights @ values).transpose(1, 2).contiguous().reshape(b, num_tokens, self.d_out)
 
