@@ -71,7 +71,7 @@ class GemmaForCasualLM(IGemma, nn.Module):
         weights_dict = load_file(str(weights_file))
         load_weights_into_gemma(self, self.config, weights_dict)
     
-    def _create_masks(self, seq_len: int, device):
+    def _create_masks(self, seq_len, device):
         ones = torch.ones((seq_len, seq_len), dtype=torch.bool, device=device)
     
         # mask_global (future is masked: j > i)
@@ -124,11 +124,18 @@ class GemmaForCasualLM(IGemma, nn.Module):
         # Forward pass
         b, seq_len = input_ids.shape
         x = self.tok_emb(input_ids) * (self.config.embedding_dim ** 0.5)
-        mask_global, mask_local = self._create_masks(seq_len, x.device)
+        # mask_global, mask_local = None, None
+        # if seq_len > 1:
+        #     mask_global, mask_local = self._create_masks(seq_len, x.device)
+        mask_global, mask_local = self._create_masks(input_positions[-1].item() + 1, x.device)
+        mask_global = mask_global[input_positions, :]
+        mask_local = mask_local[input_positions, :]
+        # print(mask_global.shape, mask_local.shape)
 
         for block in self.blocks:
             x = block(
                 x,
+                input_positions,
                 mask_global=mask_global,
                 mask_local=mask_local,
                 cos_global=self.cos_global,

@@ -43,10 +43,13 @@ class RMSNorm(nn.Module):
 
 class GroupedQueryAttention(nn.Module):
     def __init__(
-        self, 
+        self,
+        attn_type,
         d_in, 
         num_heads, 
-        num_kv_groups, 
+        num_kv_groups,
+        max_seq_len,
+        sliding_window_size,
         head_dim=None, 
         qk_norm=False,
         query_pre_attn_scalar=None, 
@@ -55,9 +58,11 @@ class GroupedQueryAttention(nn.Module):
         super().__init__()
         assert num_heads % num_kv_groups == 0, "num_heads must be divisible by num_kv_groups"
 
+        self.attn_type = attn_type
         self.num_heads = num_heads
         self.num_kv_groups = num_kv_groups
         self.group_size = num_heads // num_kv_groups
+        self.sliding_window_size = sliding_window_size
 
         if head_dim is None:
             assert d_in % num_heads == 0, "`d_in` must be divisible by `num_heads` if `head_dim` is not set"
@@ -83,8 +88,13 @@ class GroupedQueryAttention(nn.Module):
         else:
             self.scaling = (head_dim) ** -0.5
 
+        # Pre-allocate KV cache buffers
+        # NOTE: does not support more than 1 batch
+        kv_cache_shape = (1, max_seq_len, num_kv_groups, head_dim)
+        self.register_buffer("k_cache", torch.zeros(kv_cache_shape, dtype=dtype), persistent=False)
+        self.register_buffer("v_cache", torch.zeros(kv_cache_shape, dtype=dtype), persistent=False)
 
-    def forward(self, x, mask, cos, sin):
+    def forward(self, x, input_positions, mask, cos, sin):
         b, num_tokens, _ = x.shape
 
         # Apply projections
@@ -103,9 +113,19 @@ class GroupedQueryAttention(nn.Module):
         if self.k_norm:
             keys = self.k_norm(keys)
 
-        # Apply RoPE
+        # Apply RoPE to queries and the NEW keys only
         queries = apply_rope(queries, cos, sin)
         keys = apply_rope(keys, cos, sin)
+
+        # Update cache for new tokens
+        self.k_cache[:b, input_positions] = keys.transpose(1, 2)
+        self.v_cache[:b, input_positions] = values.transpose(1, 2)
+
+        # Use full history from cache for attention
+        # For sliding window, you'd slice the last N positions here
+        last_pos = input_positions[-1].item()
+        keys = self.k_cache[:b, :last_pos+1].transpose(1, 2)
+        values = self.v_cache[:b, :last_pos+1].transpose(1, 2)
 
         # Expand K and V to match number of heads
         keys = keys.repeat_interleave(self.group_size, dim=1)
@@ -118,8 +138,7 @@ class GroupedQueryAttention(nn.Module):
         attn_scores = queries @ keys.transpose(2, 3)
         attn_scores = attn_scores.masked_fill(mask, -torch.inf)
         attn_weights = torch.softmax(attn_scores, dim=-1)
-
-        context = (attn_weights @ values).transpose(1, 2).reshape(b, num_tokens, self.d_out)
+        context = (attn_weights @ values).transpose(1, 2).contiguous().reshape(b, num_tokens, self.d_out)
 
         return self.out_proj(context)
 
@@ -131,10 +150,13 @@ class TransformerBlock(nn.Module):
         self.attn_type = attn_type 
 
         self.att = GroupedQueryAttention(
+            attn_type=attn_type,
             d_in=config.embedding_dim,
             num_heads=config.num_attention_heads,
             num_kv_groups=config.n_kv_groups,
             head_dim=config.head_dim,
+            max_seq_len=config.max_seq_length,
+            sliding_window_size=config.sliding_window_size,
             qk_norm=config.use_qk_norm,
             query_pre_attn_scalar=config.query_pre_attn_scalar,
             dtype=config.get_dtype(),
@@ -148,6 +170,7 @@ class TransformerBlock(nn.Module):
     def forward(
         self,
         x,
+        input_positions,
         mask_global,
         mask_local,
         cos_global,
@@ -168,7 +191,7 @@ class TransformerBlock(nn.Module):
             cos = cos_global
             sin = sin_global
         
-        x_attn = self.att(x, attn_mask, cos, sin)
+        x_attn = self.att(x, input_positions, attn_mask, cos, sin)
         x_attn = self.post_attention_layernorm(x_attn)
         x = shortcut + x_attn
 
