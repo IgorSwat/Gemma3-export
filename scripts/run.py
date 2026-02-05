@@ -99,7 +99,8 @@ def main():
     response = runner.generate(
         prompt=args.prompt,
         output_len=args.max_tokens,
-        device=device
+        device=device,
+        top_k=1
     )
     
     end_time = time.time()

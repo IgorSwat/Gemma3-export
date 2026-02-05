@@ -213,13 +213,15 @@ class TransformerBlock(nn.Module):
         
         x_attn = self.att(x, input_positions, attn_mask, cos, sin)
         x_attn = self.post_attention_layernorm(x_attn)
-        x = shortcut + x_attn
+        # Fix for float16 overflow
+        x = (shortcut.float() + x_attn.float()).clamp(min=-65504.0, max=65504.0).to(shortcut.dtype)
 
         # Shortcut connection for feed forward block
         shortcut = x
         x_ffn = self.pre_feedforward_layernorm(x)
         x_ffn = self.ff(x_ffn)
         x_ffn = self.post_feedforward_layernorm(x_ffn)
-        x = shortcut + x_ffn
+        # Fix for float16 overflow
+        x = (shortcut.float() + x_ffn.float()).clamp(min=-65504.0, max=65504.0).to(shortcut.dtype)
         
         return x

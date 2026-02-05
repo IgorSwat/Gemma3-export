@@ -36,15 +36,13 @@ class StandardInstructDataset(Dataset):
 
         # Tokenize prompt and response
         # Using bos=True for user and eos=True for model to mark sequence bounds
-        tokens = self.tokenizer.encode(templated_content)
-
-        prompt_tokens_length = len(self.tokenizer.encode(user_content_templated))
-        response_tokens_length = len(tokens) - prompt_tokens_length
+        full_tokens = self.tokenizer.encode(templated_content)
+        prompt_tokens = self.tokenizer.encode(user_content_templated)
+        # Ensure alignment
+        prompt_tokens_length = len(prompt_tokens)
+        mask = [0] * prompt_tokens_length + [1] * (len(full_tokens) - prompt_tokens_length)
         
-        # Create mask: 0 for user prompt (padding/ignored), 1 for model response (valid)
-        mask = [0] * prompt_tokens_length + [1] * response_tokens_length
-
         return (
-            torch.tensor(tokens, dtype=torch.long),
+            torch.tensor(full_tokens, dtype=torch.long),
             torch.tensor(mask, dtype=torch.bool)
         )

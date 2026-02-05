@@ -1,3 +1,4 @@
+from ..standard.modules import Linear
 from torchao.quantization.quant_api import quantize_, Int8DynamicActivationInt4WeightConfig, Int4WeightOnlyConfig, Float8DynamicActivationFloat8WeightConfig
 import torch
 import torch.nn as nn
@@ -8,7 +9,6 @@ def run_ptq(
     model: nn.Module,
     group_size: int | None = 32,
 ):
-  print(group_size)
   """
     Performs a standard PTQ on the provided model with torchao package.
   """
@@ -26,5 +26,6 @@ def run_ptq(
 
   # Quantize linear layers
   quantize_(model, linear_config)
+  # quantize_(model, linear_config, filter_fn=lambda m, _: isinstance(m, Linear))
 
   return model

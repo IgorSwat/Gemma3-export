@@ -14,7 +14,7 @@ def run_qat(
     group_size: int = 32,
     batch_size: int = 4,
     learning_rate: float = 1e-5,
-    num_epochs: int = 1,
+    num_epochs: int = 10,
     weight_decay: float = 1e-4,
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
     alpha: float = 0.5,  # Weight for soft loss (the lower it gets, the more we value responses from dataset over teacher model)

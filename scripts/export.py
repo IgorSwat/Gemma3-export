@@ -6,8 +6,12 @@ from executorch.exir import to_edge_transform_and_lower
 from executorch.backends.xnnpack.partition.xnnpack_partitioner import XnnpackPartitioner
 from gemma_executorch.config import get_model_config
 from gemma_executorch.standard.gemma_casual import GemmaForCausalLM as StandardGemma
+from gemma_executorch.standard.tokenizer import Tokenizer as StandardTokenizer
 from gemma_executorch.custom.gemma_casual import GemmaForCasualLM as CustomGemma
+from gemma_executorch.custom.tokenizer import Tokenizer as CustomTokenizer
 from gemma_executorch.quant.ptq import run_ptq
+from gemma_executorch.quant.qat import run_qat
+from gemma_executorch.quant.datasets.standard_instruct import StandardInstructDataset
 from pathlib import Path
 from torch.export import Dim
 
@@ -30,8 +34,23 @@ def main():
     parser.add_argument("--max-seq-len", type=int, default=1024, help="Maximum sequence length for export (default: 1024)")
     parser.add_argument("--quant", type=str, default=None, choices=["ptq", "qat"], help="Quantization method")
     parser.add_argument("--quant-group-size", type=int, default=32, help="Group size for quantization (default: 32, use 0 for per-channel)")
+    parser.add_argument("--data", type=Path, help="Path to the dataset (required for QAT)")
+    parser.add_argument("--epochs", type=int, default=1, help="Number of training epochs for QAT (default: 1)")
+    parser.add_argument("--tokenizer", type=Path, default=None, help="Path to the tokenizer file (required for QAT)")
+    parser.add_argument("--device", type=str, default="cpu", choices=["cpu", "cuda"], help="Device to use (default: cpu)")
 
     args = parser.parse_args()
+
+    if args.quant == "qat":
+        if not args.data:
+            parser.error("--data is required when --quant=qat")
+        
+        # Resolve tokenizer path if not provided
+        if not args.tokenizer:
+            args.tokenizer = args.model.parent / "tokenizer.model"
+            
+        if not args.tokenizer.exists():
+            parser.error(f"--tokenizer path not found: {args.tokenizer}. Required for QAT.")
 
     config = get_model_config(args.model_type, args.dtype)
     if args.max_seq_len:
@@ -59,7 +78,31 @@ def main():
             print(f"\033[1;34m[INFO]\033[0m Applying PTQ (group_size={group_size})...")
             model = run_ptq(model, group_size=group_size)
         elif args.quant == "qat":
-            pass
+            print(f"\033[1;34m[INFO]\033[0m Starting QAT (group_size={group_size}, epochs={args.epochs})...")
+            
+            # Load teacher model (original float model)
+            if args.impl == "standard":
+                teacher_model = StandardGemma(config)
+                tokenizer = StandardTokenizer(str(args.tokenizer))
+            else:
+                teacher_model = CustomGemma(config)
+                tokenizer = CustomTokenizer(str(args.tokenizer))
+            
+            teacher_model.load(args.model)
+            
+            # Load dataset
+            dataset = StandardInstructDataset(args.data, tokenizer=tokenizer, apply_bos=False)
+            
+            model = run_qat(
+                model=model,
+                teacher_model=teacher_model,
+                dataset=dataset,
+                group_size=group_size,
+                num_epochs=args.epochs,
+                device=args.device
+            )
+            # Ensure model is back on CPU for export
+            model = model.to("cpu")
 
     print(f"\033[1;34m[INFO]\033[0m Starting export process...")
 
