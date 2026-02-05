@@ -71,7 +71,7 @@ class GemmaForCasualLM(IGemma, nn.Module):
         weights_dict = load_file(str(weights_file))
         load_weights_into_gemma(self, self.config, weights_dict)
     
-    def _create_masks(self, seq_len: int, device):
+    def _create_masks(self, seq_len, device):
         ones = torch.ones((seq_len, seq_len), dtype=torch.bool, device=device)
     
         # mask_global (future is masked: j > i)
@@ -118,9 +118,6 @@ class GemmaForCasualLM(IGemma, nn.Module):
 
     @override
     def forward(self, input_ids: torch.LongTensor, input_positions: torch.LongTensor):
-        # NOTE: we pass input positions for compatibility with standard RNE LLM API,
-        # but this implementation does not use it.
-
         # Forward pass
         b, seq_len = input_ids.shape
         x = self.tok_emb(input_ids) * (self.config.embedding_dim ** 0.5)
@@ -129,6 +126,7 @@ class GemmaForCasualLM(IGemma, nn.Module):
         for block in self.blocks:
             x = block(
                 x,
+                input_positions,
                 mask_global=mask_global,
                 mask_local=mask_local,
                 cos_global=self.cos_global,

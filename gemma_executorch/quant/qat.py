@@ -35,13 +35,13 @@ def run_qat(
     quantize_(model, QATConfig(base_config, step="prepare"))
 
     # Apply weight-only quantization to embeddings (activation fake quant not supported)
-    embedding_weight_config = Int4WeightOnlyConfig(group_size=group_size)
-    emb_qat_config = QATConfig(weight_config=embedding_weight_config, step="prepare")
-    quantize_(
-        model, 
-        emb_qat_config, 
-        filter_fn=lambda m, _: isinstance(m, nn.Embedding)
-    )
+    # embedding_weight_config = Int4WeightOnlyConfig(group_size=group_size)
+    # emb_qat_config = QATConfig(weight_config=embedding_weight_config, step="prepare")
+    # quantize_(
+    #     model, 
+    #     emb_qat_config, 
+    #     filter_fn=lambda m, _: isinstance(m, nn.Embedding)
+    # )
 
     optimizer = optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, collate_fn=pad_collate)

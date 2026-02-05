@@ -1,4 +1,4 @@
-from torchao.quantization.quant_api import quantize_, Int8DynamicActivationInt4WeightConfig, Int4WeightOnlyConfig
+from torchao.quantization.quant_api import quantize_, Int8DynamicActivationInt4WeightConfig, Int4WeightOnlyConfig, Float8DynamicActivationFloat8WeightConfig
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -18,11 +18,11 @@ def run_ptq(
   linear_config = Int8DynamicActivationInt4WeightConfig(group_size=group_size)
 
   # Quantize embeddings
-  quantize_(
-      model, 
-      embedding_config, 
-      filter_fn=lambda m, _: isinstance(m, nn.Embedding)
-  )
+  # quantize_(
+  #     model, 
+  #     embedding_config, 
+  #     filter_fn=lambda m, _: isinstance(m, nn.Embedding)
+  # )
 
   # Quantize linear layers
   quantize_(model, linear_config)
